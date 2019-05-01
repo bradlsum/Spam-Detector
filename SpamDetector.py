@@ -16,8 +16,6 @@ hdir = cdir + "/ham/"
 sdir = cdir + "/spam/"
 tdir = cdir + "/target/"
 
-top_n = 500
-
 # Generate word dictionary and file contents for each file
 def generate_words(files_dir, ones=False):
     words = []
@@ -57,11 +55,11 @@ the word "the" appears 4 times in File 5
 def create_matrix(file_words, num_files, words, n=0, inter = 20):
     print("Creating matrix...")
     per_count = 1
-    if n > 0:
+    if n >= 0:
         matrix = np.zeros((num_files, n + 1))
         top_words = [w[0] for w in words.most_common(n)]
     else:
-        matrix = np.zeros((num_files, len(words)))
+        matrix = np.zeros((num_files, len(words)+1))
         top_words = words
     for file_num in range(num_files):
         for file_word in file_words[file_num]:
@@ -76,7 +74,7 @@ def create_matrix(file_words, num_files, words, n=0, inter = 20):
             if not found:
                 matrix[file_num][word_num] += file_words[file_num].get(file_word)
         if file_num / num_files >= per_count/inter:
-            print(per_count/inter*100, "%")
+            print(round(per_count/inter*100, 1), "%")
             per_count += 1
     print(100, "%")
 
@@ -88,18 +86,15 @@ def create_matrix(file_words, num_files, words, n=0, inter = 20):
     return matrix
 
 
-def matrix_from_words(file_words, num_files, words, n=0, inter = 20):
+def matrix_from_words(file_words, num_files, inter = 20):
     f = open("words", "rb")  # remember to open the file in binary mode
     top_words = pickle.load(f)
     f.close()
 
+    n = len(top_words)
+
     per_count = 1
-    if n > 0:
-        matrix = np.zeros((num_files, n + 1))
-        # top_words = [w[0] for w in words.most_common(n)]
-    else:
-        matrix = np.zeros((num_files, len(words)))
-        # top_words = words
+    matrix = np.zeros((num_files, n + 1))
     for file_num in range(num_files):
         for file_word in file_words[file_num]:
             word_num = 0
@@ -127,11 +122,19 @@ while choice != "3":
 
     # Train model
     if choice == "2":
+        top_n = ""
+        while top_n == "":
+            try:
+                top_n = int(input("Please type in how many words you want to tokenize (or -1 and below to tokenize all "
+                                  "words. \n"))
+            except ValueError:
+                top_n = ""
         # List of all ham & spam files respectively.
         ham = [hdir + f for f in os.listdir(hdir) if os.path.isfile(hdir + f)]
         spam = [sdir + f for f in os.listdir(sdir) if os.path.isfile(sdir + f)]
 
         # Load from file
+        print("Loading files..")
         num_files = len(ham) + len(spam)
         words1, files1, y1 = generate_words(ham)
         words2, files2, y2 = generate_words(spam, True)
@@ -145,9 +148,11 @@ while choice != "3":
                                                         test_size=0.20, random_state=42)
 
         model = GaussianNB()
+        print("Training model...")
         model.fit(xtrain, ytrain)
 
         # Use model to predict which of the test emails are spam or not and print accuracy.
+        print("Making predictions using model...")
         ypred = model.predict(xtest)
         print("Accuracy:", metrics.accuracy_score(ytest, ypred))
 
@@ -169,7 +174,7 @@ while choice != "3":
         words, files, y = generate_words(target)
 
         # Create matrix
-        matrix = matrix_from_words(files, num_files, words, n=top_n)
+        matrix = matrix_from_words(files, num_files)
 
         # Use model to predict which of the test emails are spam or not and print accuracy.
         ypred = model.predict(matrix)
